@@ -104,6 +104,77 @@ def matmul_hadU_cuda(X, hadK, K):
 def matmul_hadUt_cuda(X, hadK, K):
     return matmul_hadU_cuda(X, hadK, K, transpose=True)
 
+def kron_mat_calc(size, dtype=torch.float16):
+    #50% sparse hadamard
+    x = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
+    x_inv = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
+    y = torch.tensor([[1, 0],[0, -1]], dtype=dtype)
+    y_inv = torch.tensor([[1, 0],[0, -1]], dtype=dtype)
+
+    #75% sparse hadamard
+    #x = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
+    #x_inv = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
+    #y = torch.tensor([[0, 1, 0, 0],[1, 0, 0, 0], [0, 0, 0, -1], [0, 0, -1, 0]], dtype=dtype)
+    #y_inv = torch.tensor([[0, 1, 0, 0],[1, 0, 0, 0], [0, 0, 0, -1], [0, 0, -1, 0]], dtype=dtype)
+    i = 2
+    while i < size:
+        y = torch.kron(x, y)
+        y_inv = torch.kron(x_inv, y_inv)
+        i = i * 2
+    return y / torch.tensor(size).sqrt() * torch.tensor(2).sqrt(), y_inv / torch.tensor(size).sqrt() * torch.tensor(2).sqrt()
+
+def apply_sparse_had_to_linear(module, had_dim=-1, output=False):
+    assert isinstance(module, torch.nn.Linear)
+    in_features, out_features = module.in_features, module.out_features
+    
+    if had_dim != -1:
+        assert is_pow2(had_dim), "Hadamard dimension must be a power of 2!"
+    
+    W_ = module.weight.data
+    dtype = W_.dtype
+    dev = W_.device
+    init_shape = W_.shape
+    W_ = W_.float().cuda()
+    
+    if had_dim == -1:
+             
+        if output:
+            #had_K, K = get_hadK(out_features)
+            #W_ = matmul_hadU_cuda(W_.t(), had_K, K).t()
+            kron_size = init_shape[-1]
+            kron, kron_inv = kron_mat_calc(kron_size)
+            kron = kron.to(W_)
+            kron_inv = kron_inv.to(W_)
+            W_ = W_ @ kron_inv
+        if not output:
+            #had_K, K = get_hadK(in_features)
+            #W_ = matmul_hadU_cuda(W_, had_K, K)
+            kron_size = init_shape[0]
+            kron, kron_inv = kron_mat_calc(kron_size)
+            kron = kron.to(W_)
+            kron_inv = kron_inv.to(W_)
+            W_ = kron @ W_
+    else:
+        # Apply Hadamard to the last had_dim chunks of the weights
+        if output:
+            W_ = W_.t()
+            transposed_shape = W_.shape            
+            #W_ = fast_hadamard_transform.hadamard_transform(
+            #    W_.reshape(-1, transposed_shape[-1]//had_dim, had_dim), 
+            #    scale=1/math.sqrt(had_dim)
+            #    ).reshape(transposed_shape).t()
+            W_ = W_.reshape(-1, transposed_shape[-1]//had_dim, had_dim)
+            kron_size = W_.shape[-1]
+            kron, kron_inv = kron_mat_calc(kron_size)
+            kron = kron.to(W_)
+            kron_inv = kron_inv.to(W_)
+            W_ = W_ @ kron_inv
+            W_ = W_.reshape(transposed_shape).t()
+        else:
+            raise NotImplementedError("Not implemented (or tested) yet!")
+            n = W_.shape[1]
+            W_ = hadamard_transform(W_.reshape(-1, n//had_dim, had_dim), scale=1/math.sqrt(had_dim)).reshape(init_shape)
+    module.weight.data = W_.to(device=dev, dtype=dtype)
 
 def apply_exact_had_to_linear(module, had_dim=-1, output=False):
     assert isinstance(module, torch.nn.Linear)
