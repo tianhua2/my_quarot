@@ -5,7 +5,7 @@ import utils
 import transformers
 import tqdm, math
 import quant_utils
-from hadamard_utils import random_hadamard_matrix, apply_exact_had_to_linear, is_pow2
+from hadamard_utils import random_hadamard_matrix, apply_exact_had_to_linear, is_pow2, apply_sparse_had_to_linear, kron_mat_calc
 from fast_hadamard_transform import hadamard_transform
 
 def fuse_ln_linear(layernorm: torch.nn.Module, linear_layers: typing.Iterable[torch.nn.Linear]) -> None:
@@ -121,25 +121,6 @@ def random_orthogonal_matrix(size, device):
     q, r = torch.linalg.qr(random_matrix)
     q *= torch.sign(torch.diag(r)).unsqueeze(0)
     return q
-
-def kron_mat_calc(size, dtype=torch.float16):
-    #50% sparse hadamard
-    x = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
-    x_inv = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
-    y = torch.tensor([[1, 0],[0, -1]], dtype=dtype)
-    y_inv = torch.tensor([[1, 0],[0, -1]], dtype=dtype)
-
-    #75% sparse hadamard
-    #x = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
-    #x_inv = torch.tensor([[1, 1],[1, -1]], dtype=dtype)
-    #y = torch.tensor([[0, 1, 0, 0],[1, 0, 0, 0], [0, 0, 0, -1], [0, 0, -1, 0]], dtype=dtype)
-    #y_inv = torch.tensor([[0, 1, 0, 0],[1, 0, 0, 0], [0, 0, 0, -1], [0, 0, -1, 0]], dtype=dtype)
-    i = 2
-    while i < size:
-        y = torch.kron(x, y)
-        y_inv = torch.kron(x_inv, y_inv)
-        i = i * 2
-    return y / torch.tensor(size).sqrt() * torch.tensor(2).sqrt(), y_inv / torch.tensor(size).sqrt() * torch.tensor(2).sqrt()
 
 def get_orthogonal_matrix(size, mode, device=utils.DEV):
     if mode == 'random':
@@ -268,9 +249,10 @@ def rotate_ov_proj(layer, model_type, head_num, head_dim):
     else:
         raise ValueError(f'Unknown model type {model_type}')
     
-    apply_exact_had_to_linear(v_proj, had_dim=head_dim, output=True)
-    apply_exact_had_to_linear(o_proj, had_dim=-1, output=False)
-
+    #apply_exact_had_to_linear(v_proj, had_dim=head_dim, output=True)
+    #apply_exact_had_to_linear(o_proj, had_dim=-1, output=False)
+    apply_sparse_had_to_linear(v_proj, had_dim=head_dim, output=True)
+    apply_sparse_had_to_linear(o_proj, had_dim=-1, output=False)
 
 @torch.inference_mode()
 def rotate_model(model, args):
