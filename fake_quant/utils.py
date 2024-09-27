@@ -20,7 +20,8 @@ supported_models = [
             'facebook/opt-125m',
             'facebook/opt-13b',
             'mistralai/Mistral-7B-v0.1',
-            'TheBloke/Llama-2-70B-GPTQ'
+            'TheBloke/Llama-2-70B-GPTQ',
+            'meta-llama/Llama-3.2-1B'
             ]
 supported_datasets = ['wikitext2', 'ptb', 'c4']
 
