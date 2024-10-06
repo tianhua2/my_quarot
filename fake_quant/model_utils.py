@@ -11,7 +11,8 @@ LLAMA_MODEL = transformers.models.llama.modeling_llama.LlamaForCausalLM
 LLAMA_LAYER = transformers.models.llama.modeling_llama.LlamaDecoderLayer
 MISTRAL_MODEL = transformers.models.mistral.modeling_mistral.MistralForCausalLM
 MISTRAL_LAYER = transformers.models.mistral.modeling_mistral.MistralDecoderLayer
-
+QWEN2_MODEL = transformers.models.qwen2.modeling_qwen2.Qwen2ForCausalLM
+QWEN2_LAYER = transformers.models.qwen2.modeling_qwen2.Qwen2DecoderLayer
 
 def model_type_extractor(model):
     if isinstance(model, LLAMA_MODEL):
@@ -20,6 +21,8 @@ def model_type_extractor(model):
         return OPT_MODEL
     elif isinstance(model, MISTRAL_MODEL):
         return MISTRAL_MODEL
+    elif isinstance(model, QWEN2_MODEL):
+        return QWEN2_MODEL
     else:
         raise ValueError(f'Unknown model type {model}')
 
@@ -32,6 +35,8 @@ def get_rope_function_name(model):
         return "apply_rotary_pos_emb"
     elif isinstance(model, MISTRAL_MODEL):
         return "apply_rotary_pos_emb"
+    elif isinstance(model, qwen2_MODEL):
+        return "apply_rotary_pos_emb"
     raise NotImplementedError
 
 
@@ -41,7 +46,9 @@ def get_layers(model):
     if isinstance(model, LLAMA_MODEL):
         return model.model.layers
     if isinstance(model, MISTRAL_MODEL):
-        return model.model.layers    
+        return model.model.layers   
+    if isinstance(model, QWEN2_MODEL):
+        return model.model.layers   
     raise NotImplementedError
 
 
@@ -156,6 +163,43 @@ def get_mistral(model_name, hf_token,
     logging.info('---> Loading {} Model with seq_len: {}'.format(model_name, model.seqlen))
     return model
                  
+def get_qwen(model_name, hf_token):
+    torch.nn.init.kaiming_uniform_ = skip
+    torch.nn.init.uniform_ = skip
+    torch.nn.init.normal_ = skip
+    model = transformers.Qwen2ForCausalLM.from_pretrained(model_name, attn_implementation = "eager",
+                                                          torch_dtype=torch.float16,
+                                                          use_auth_token=hf_token,
+                                                          low_cpu_mem_usage=True,
+                                                          DYNQ=DYNQ,
+                                                          HADAMARD=HADAMARD,
+                                                          KRON=KRON,
+                                                          KV_BITS1=KV_BITS1,
+                                                          KV_BITS2=KV_BITS2,
+                                                          KV_BITS3=KV_BITS3,
+                                                          KV_BITS4 = KV_BITS4,
+                                                          heavy_budget_ratio1 = heavy_budget_ratio1,
+                                                          heavy_budget_ratio2 = heavy_budget_ratio2,
+                                                          heavy_budget_ratio3 = heavy_budget_ratio3,
+                                                          REFRESH = REFRESH,
+                                                          KV_BITS=KV_BITS,
+                                                          H2O = H2O,
+                                                          heavy_budget_ratio = heavy_budget_ratio,
+                                                          recent_budget_ratio = recent_budget_ratio,
+                                                          score_coeff = score_coeff,
+                                                          output_attentions = True,
+                                                          TH_H = TH_H,
+                                                          TH_L = TH_L,
+                                                          CACHE_SIZE = CACHE_SIZE, 
+        
+    )
+    model.seqlen = 2048
+    logging.info('---> Loading {} Model with seq_len: {}'.format(model_name, model.seqlen))
+    if model.config.tie_word_embeddings:
+        model.lm_head.weight = torch.nn.Parameter(torch.empty_like(model.lm_head.weight))
+        model.lm_head.weight.data = model.model.embed_tokens.weight.clone()
+    return model  
+    
 def get_model(
     model_name, 
     DYNQ, HADAMARD, KRON, KV_BITS1, KV_BITS2, KV_BITS3, KV_BITS4, 
@@ -223,6 +267,27 @@ def get_model(
                          TH_L = TH_L,
                          CACHE_SIZE = CACHE_SIZE,                           
 )
+    elif "qwen" in model_name.lower():
+        return get_qwen(model_name, hf_token=hf_token,
+                         DYNQ=DYNQ,
+                         HADAMARD=HADAMARD,
+                         KRON=KRON,
+                         KV_BITS1=KV_BITS1,
+                         KV_BITS2=KV_BITS2,
+                         KV_BITS3=KV_BITS3,
+                         KV_BITS4 = KV_BITS4,
+                         heavy_budget_ratio1 = heavy_budget_ratio1,
+                         heavy_budget_ratio2 = heavy_budget_ratio2,
+                         heavy_budget_ratio3 = heavy_budget_ratio3,
+                         REFRESH = REFRESH,
+                         KV_BITS=KV_BITS,
+                         H2O = H2O,
+                         heavy_budget_ratio = heavy_budget_ratio,
+                         recent_budget_ratio = recent_budget_ratio,
+                         score_coeff = score_coeff,
+                         TH_H = TH_H,
+                         TH_L = TH_L,
+                         CACHE_SIZE = CACHE_SIZE,  )
     else:
         raise ValueError(f'Unknown model {model_name}')
 
@@ -233,7 +298,9 @@ def get_model_type(model):
     elif isinstance(model, LLAMA_MODEL):
         model_type = LLAMA_MODEL
     elif isinstance(model, MISTRAL_MODEL):
-        model_type = MISTRAL_MODEL    
+        model_type = MISTRAL_MODEL   
+    elif isinstance(model, QWEN2_MODEL):
+        model_type = QWEN2_MODEL
     else:
         raise ValueError(f'Unknown model type {model}')
     return model_type
@@ -244,6 +311,8 @@ def get_embeddings(model, model_type) -> list[torch.nn.Module]:
     elif model_type == OPT_MODEL:
         return [model.model.decoder.embed_tokens, model.model.decoder.embed_positions]
     elif model_type == MISTRAL_MODEL:
+        return [model.model.embed_tokens]
+    elif model_type == QWEN2_MODEL:
         return [model.model.embed_tokens]
     else:
         raise ValueError(f'Unknown model type {model_type}')
@@ -256,6 +325,8 @@ def get_transformer_layers(model, model_type):
         return [layer for layer in model.model.decoder.layers]
     elif model_type == MISTRAL_MODEL:
         return [layer for layer in model.model.layers]
+    elif model_type == QWEN2_MODEL:
+        return [layer for layer in model.model.layers]
     else:
         raise ValueError(f'Unknown model type {model_type}')
 
@@ -266,6 +337,8 @@ def get_lm_head(model, model_type):
     elif model_type == OPT_MODEL:
         return model.lm_head
     elif model_type == MISTRAL_MODEL:
+        return model.lm_head
+    elif model_type == QWEN2_MODEL:
         return model.lm_head
     else:
         raise ValueError(f'Unknown model type {model_type}')
@@ -282,6 +355,9 @@ def get_pre_head_layernorm(model, model_type):
         pre_head_layernorm = model.model.norm
         assert isinstance(pre_head_layernorm,
                           transformers.models.mistral.modeling_mistral.MistralRMSNorm)
+    elif model_type == QWEN2_MODEL:
+        pre_head_layernorm = model.model.norm
+        assert isinstance(pre_head_layernorm, transformers.models.qwen2.modeling_qwen2.Qwen2RMSNorm)
     else:
         raise ValueError(f'Unknown model type {model_type}')
     return pre_head_layernorm
@@ -293,6 +369,8 @@ def get_mlp_bottleneck_size(model):
     elif model_type == OPT_MODEL:
         return model.config.ffn_dim
     elif model_type == MISTRAL_MODEL:
+        return model.config.intermediate_size
+    elif model_type == QWEN2_MODEL:
         return model.config.intermediate_size
     else:
         raise ValueError(f'Unknown model type {model_type}')
@@ -405,7 +483,7 @@ def capture_layer_io(model_type, layer, layer_input):
             module = getattr(layer.self_attn, name, None) or getattr(layer, name, None)
             handles.append(module.register_forward_hook(hook_factory(name, captured_outputs, False)))
 
-    elif model_type == MISTRAL_MODEL:
+    elif model_type == MISTRAL_MODEL or model_type == QWEN2_MODEL:
         captured_inputs = {
             'k_proj': [],  # q_proj, v_proj has the same input as k_proj
             'o_proj': [],
