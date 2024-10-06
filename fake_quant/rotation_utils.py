@@ -68,6 +68,9 @@ def fuse_layer_norms(model):
         elif model_type == model_utils.MISTRAL_MODEL:
             fuse_ln_linear(layer.post_attention_layernorm, [layer.mlp.up_proj, layer.mlp.gate_proj])    
             fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
+        elif model_type == model_utils.QWEN2_MODEL:
+            fuse_ln_linear(layer.post_attention_layernorm, [layer.mlp.up_proj, layer.mlp.gate_proj])    
+            fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
         else:
             raise ValueError(f'Unknown model type {model_type}')
             
@@ -94,6 +97,13 @@ def fuse_layer_norms(model):
             lambda _: model_utils.RMSN(model.config.hidden_size),
             replace_layers=False,
         )
+    elif model_type == model_utils.QWEN2_MODEL:
+        model_utils.replace_modules(
+            model,
+            transformers.models.qwen2.modeling_qwen2.Qwen2RMSNorm,
+            lambda _: model_utils.RMSN(model.config.hidden_size),
+            replace_layers=False,
+        )    
     else:
         model_utils.replace_modules(
             model,
@@ -159,6 +169,8 @@ def rotate_attention_output(layer, Q, model_type) -> None:
         W = layer.self_attn.out_proj
     elif model_type == model_utils.MISTRAL_MODEL:
         W = layer.self_attn.o_proj
+    elif model_type == model_utils.QWEN2_MODEL:
+        W = layer.self_attn.o_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')
 
@@ -177,6 +189,8 @@ def rotate_mlp_input(layer, Q, model_type):
         mlp_inputs = [layer.fc1]
     elif model_type == model_utils.MISTRAL_MODEL:
         mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
+    elif model_type == model_utils.QWEN2_MODEL:
+        mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
     else:
         raise ValueError(f'Unknown model type {model_type}')
     for W in mlp_inputs:
@@ -191,6 +205,8 @@ def rotate_mlp_output(layer, Q, model_type):
     elif model_type == model_utils.OPT_MODEL:
         W = layer.fc2
     elif model_type == model_utils.MISTRAL_MODEL:
+        W = layer.mlp.down_proj
+    elif model_type == model_utils.QWEN2_MODEL:
         W = layer.mlp.down_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')
@@ -242,7 +258,7 @@ def rotate_head(model, Q: torch.Tensor) -> None:
 
 def rotate_ov_proj(layer, model_type, head_num, head_dim):
     v_proj = layer.self_attn.v_proj
-    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.MISTRAL_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.MISTRAL_MODEL or model_type == model_utils.QWEN2_MODEL:
         o_proj = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         o_proj = layer.self_attn.out_proj
