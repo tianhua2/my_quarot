@@ -56,7 +56,7 @@ def get_llama(model_name, hf_token,
               DYNQ, HADAMARD, KRON, KV_BITS1, KV_BITS2, KV_BITS3, KV_BITS4, 
               heavy_budget_ratio1, heavy_budget_ratio2, heavy_budget_ratio3,
               REFRESH, KV_BITS, H2O, heavy_budget_ratio, recent_budget_ratio,
-              score_coeff, TH_H, TH_L, CACHE_SIZE
+              score_coeff, TH_H, TH_L, CACHE_SIZE,TH_H2, TH_L2, TH_H3, TH_L3, TH_H4, TH_L4, 
              ):
     torch.nn.init.kaiming_uniform_ = skip
     torch.nn.init.uniform_ = skip
@@ -82,8 +82,14 @@ def get_llama(model_name, hf_token,
                                                           score_coeff = score_coeff,
                                                           output_attentions = True,
                                                           TH_H = TH_H,
-                                                          TH_L = TH_L,
+                                                          TH_L = TH_L,                                                          
                                                           CACHE_SIZE = CACHE_SIZE,
+                                                          TH_H2 = TH_H2,
+                                                          TH_L2 = TH_L2,
+                                                          TH_H3 = TH_H3,
+                                                          TH_L3 = TH_L3,
+                                                          TH_H4 = TH_H4,
+                                                          TH_L4 = TH_L4,
                                                          )
     #model = transformers.LlamaForCausalLM.from_pretrained(model_name, torch_dtype='auto', 
     #                                                      use_auth_token=hf_token,
@@ -204,7 +210,7 @@ def get_model(
     model_name, 
     DYNQ, HADAMARD, KRON, KV_BITS1, KV_BITS2, KV_BITS3, KV_BITS4, 
     heavy_budget_ratio1, heavy_budget_ratio2, heavy_budget_ratio3,
-    REFRESH, KV_BITS, H2O, heavy_budget_ratio, recent_budget_ratio, score_coeff, TH_H, TH_L, CACHE_SIZE, hf_token=None
+    REFRESH, KV_BITS, H2O, heavy_budget_ratio, recent_budget_ratio, score_coeff, TH_H, TH_L, CACHE_SIZE,TH_H2, TH_L2, TH_H3, TH_L3, TH_H4, TH_L4, hf_token=None
 ):
     if 'llama' in model_name or 'Llama' in model_name:
         return get_llama(model_name, hf_token=hf_token,
@@ -226,7 +232,13 @@ def get_model(
                          score_coeff = score_coeff,
                          TH_H = TH_H,
                          TH_L = TH_L,
-                         CACHE_SIZE = CACHE_SIZE,)
+                         CACHE_SIZE = CACHE_SIZE,
+                         TH_H2 = TH_H2,
+                         TH_L2 = TH_L2,
+                         TH_H3 = TH_H3,
+                         TH_L3 = TH_L3,
+                         TH_H4 = TH_H4,
+                         TH_L4 = TH_L4,)
     elif 'opt' in model_name:
         return get_opt(model_name,
                        DYNQ=DYNQ,
