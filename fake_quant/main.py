@@ -6,7 +6,7 @@ import transformers
 import quant_utils
 import rotation_utils
 import gptq_utils
-import eval_utils
+#import eval_utils
 import hadamard_utils
 
 def main():
@@ -30,6 +30,9 @@ def main():
     if args.rotate:
         rotation_utils.fuse_layer_norms(model)
         rotation_utils.rotate_model(model, args)
+        save_dict = {}
+        save_dict["model"] = model.state_dict()
+        torch.save(save_dict, args.save_qmodel_path)
         utils.cleanup_memory(verbos=True)
             
         quant_utils.add_actquant(model) #Add Activation Wrapper to the model
