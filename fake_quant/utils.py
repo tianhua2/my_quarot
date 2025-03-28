@@ -220,18 +220,18 @@ def parser_gen():
     parser.add_argument('--CACHE_SIZE', type=int, default=100000)         
 
     args = parser.parse_args()
-    if args.lm_eval:
-        import lm_eval
-        from lm_eval import tasks
-        from lm_eval import utils as lm_eval_utils
-        #from lm_eval.tasks import initialize_tasks
-        #initialize_tasks()
-        task_manager = lm_eval.tasks.TaskManager()
-        task_manager.initialize_tasks()        
-        for task in args.tasks:
-            print(task)
-            #if task not in lm_eval_utils.MultiChoice(tasks.ALL_TASKS):
-            #    raise ValueError(f"Invalid task: {task}")
+    # if args.lm_eval:
+    #     import lm_eval
+    #     from lm_eval import tasks
+    #     from lm_eval import utils as lm_eval_utils
+    #     #from lm_eval.tasks import initialize_tasks
+    #     #initialize_tasks()
+    #     task_manager = lm_eval.tasks.TaskManager()
+    #     task_manager.initialize_tasks()        
+    #     for task in args.tasks:
+    #         print(task)
+    #         #if task not in lm_eval_utils.MultiChoice(tasks.ALL_TASKS):
+    #         #    raise ValueError(f"Invalid task: {task}")
 
     # quant_type = f'w{args.w_bits}a{args.a_bits}_{args.rotate_mode}'
     if args.save_name is None:
